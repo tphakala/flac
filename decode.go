@@ -4,6 +4,7 @@
 package flac
 
 import (
+	"bufio"
 	"bytes"
 	"crypto/md5"
 	"encoding/binary"
@@ -49,7 +50,7 @@ func Decode(r io.Reader) ([]byte, MetaData, error) {
 // Unlike the Decode function, a decoder can decode the file incrementally,
 // one frame at a time.
 type Decoder struct {
-	r io.Reader
+	r *bufio.Reader
 	// N is the next frame number.
 	n int
 
@@ -86,12 +87,14 @@ type VorbisComment struct {
 // If an error is encountered while reading the header information then nil is
 // returned along with the error.
 func NewDecoder(r io.Reader) (*Decoder, error) {
-	err := checkMagic(r)
+	br := bufio.NewReaderSize(r, 32*1024)
+
+	err := checkMagic(br)
 	if err != nil {
 		return nil, err
 	}
 
-	d := &Decoder{r: r}
+	d := &Decoder{r: br}
 	if d.MetaData, err = readMetaData(d.r); err != nil {
 		return nil, err
 	}
