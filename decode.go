@@ -12,11 +12,18 @@ import (
 	"io"
 	"io/ioutil"
 	"strconv"
+	"sync"
 
 	"github.com/eaburns/bit"
 )
 
 var magic = [4]byte{'f', 'L', 'a', 'C'}
+
+var frameBufferPool = sync.Pool{
+	New: func() interface{} {
+		return make([]int32, 0, 65536) // Common frame size
+	},
+}
 
 // Decode reads a FLAC file, decodes it, verifies its MD5 checksum, and returns the data and metadata.
 func Decode(r io.Reader) ([]byte, MetaData, error) {
@@ -283,6 +290,9 @@ func vorbisString(data []byte) (string, []byte, error) {
 
 // Next returns the audio data from the next frame.
 func (d *Decoder) Next() ([]byte, error) {
+	frameBuffer := frameBufferPool.Get().([]int32)
+	defer frameBufferPool.Put(frameBuffer)
+
 	defer func() { d.n++ }()
 
 	// Reuse buffer instead of creating new one each time
