@@ -25,7 +25,9 @@ func Decode(r io.Reader) ([]byte, MetaData, error) {
 		return nil, MetaData{}, err
 	}
 
-	data := make([]byte, 0, d.TotalSamples*int64(d.NChannels)*int64(d.BitsPerSample/8))
+	// Pre-calculate approximate capacity based on audio specs
+	expectedSize := d.TotalSamples * int64(d.NChannels) * int64(d.BitsPerSample/8)
+	data := make([]byte, 0, expectedSize)
 	for {
 		frame, err := d.Next()
 		if err == io.EOF {
@@ -249,6 +251,9 @@ func readVorbisComment(r io.Reader) (*VorbisComment, error) {
 	}
 	n := binary.LittleEndian.Uint32(data)
 	data = data[4:]
+
+	// Pre-allocate comments slice
+	cmnt.Comments = make([]string, 0, n)
 
 	for i := uint32(0); i < n; i++ {
 		var s string
