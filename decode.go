@@ -57,6 +57,9 @@ type Decoder struct {
 	n int
 
 	MetaData
+	// Add reusable buffers
+	rawBuffer   *bytes.Buffer
+	frameBuffer []int32
 }
 
 // MetaData contains metadata header information from a FLAC file header.
@@ -282,8 +285,12 @@ func vorbisString(data []byte) (string, []byte, error) {
 func (d *Decoder) Next() ([]byte, error) {
 	defer func() { d.n++ }()
 
-	raw := bytes.NewBuffer(make([]byte, 0, 4096))
-	frame := io.TeeReader(d.r, raw)
+	// Reuse buffer instead of creating new one each time
+	if d.rawBuffer == nil {
+		d.rawBuffer = bytes.NewBuffer(make([]byte, 0, 4096))
+	}
+	d.rawBuffer.Reset()
+	frame := io.TeeReader(d.r, d.rawBuffer)
 	h, err := readFrameHeader(frame, d.StreamInfo)
 	if err == io.EOF {
 		return nil, err
@@ -307,7 +314,7 @@ func (d *Decoder) Next() ([]byte, error) {
 	if _, err := io.ReadFull(frame, crc16[:]); err != nil {
 		return nil, err
 	}
-	if err = verifyCRC16(raw.Bytes()); err != nil {
+	if err = verifyCRC16(d.rawBuffer.Bytes()); err != nil {
 		return nil, err
 	}
 
