@@ -277,7 +277,7 @@ func vorbisString(data []byte) (string, []byte, error) {
 func (d *Decoder) Next() ([]byte, error) {
 	defer func() { d.n++ }()
 
-	raw := bytes.NewBuffer(nil)
+	raw := bytes.NewBuffer(make([]byte, 0, 4096))
 	frame := io.TeeReader(d.r, raw)
 	h, err := readFrameHeader(frame, d.StreamInfo)
 	if err == io.EOF {
@@ -289,6 +289,7 @@ func (d *Decoder) Next() ([]byte, error) {
 	br := bit.NewReader(frame)
 	data := make([][]int32, h.channelAssignment.nChannels())
 	for ch := range data {
+		data[ch] = make([]int32, h.blockSize)
 		if data[ch], err = readSubFrame(br, h, ch); err != nil {
 			return nil, err
 		}
@@ -383,10 +384,13 @@ func fixChannels(data [][]int32, assign channelAssignment) {
 
 func interleave(chs [][]int32, bps int) ([]byte, error) {
 	nSamples := len(chs[0])
+	nChannels := len(chs)
+
+	bytesPerSample := bps / 8
+	data := make([]byte, nSamples*nChannels*bytesPerSample)
 
 	switch bps {
 	case 8:
-		data := make([]byte, nSamples*len(chs))
 		var i int
 		for j := 0; j < nSamples; j++ {
 			for _, ch := range chs {
@@ -397,7 +401,6 @@ func interleave(chs [][]int32, bps int) ([]byte, error) {
 		return data, nil
 
 	case 16:
-		data := make([]byte, 2*nSamples*len(chs))
 		var i int
 		for j := 0; j < nSamples; j++ {
 			for _, ch := range chs {
@@ -410,7 +413,6 @@ func interleave(chs [][]int32, bps int) ([]byte, error) {
 		return data, nil
 
 	case 24:
-		data := make([]byte, 3*nSamples*len(chs))
 		var i int
 		for j := 0; j < nSamples; j++ {
 			for _, ch := range chs {
