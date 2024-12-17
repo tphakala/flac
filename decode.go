@@ -395,6 +395,10 @@ func fixChannels(data [][]int32, assign channelAssignment) {
 }
 
 func interleave(chs [][]int32, bps int) ([]byte, error) {
+	// Fast path for common stereo 16-bit case
+	if bps == 16 && len(chs) == 2 {
+		return interleave16BitStereo(chs[0], chs[1])
+	}
 	nSamples := len(chs[0])
 	nChannels := len(chs)
 
@@ -439,6 +443,20 @@ func interleave(chs [][]int32, bps int) ([]byte, error) {
 
 	}
 	return nil, errors.New("Unsupported bits per sample")
+}
+
+func interleave16BitStereo(left, right []int32) ([]byte, error) {
+	nSamples := len(left)
+	data := make([]byte, nSamples*4)
+	for i, j := 0, 0; i < nSamples; i++ {
+		l, r := left[i], right[i]
+		data[j] = byte(l & 0xFF)
+		data[j+1] = byte((l >> 8) & 0xFF)
+		data[j+2] = byte(r & 0xFF)
+		data[j+3] = byte((r >> 8) & 0xFF)
+		j += 4
+	}
+	return data, nil
 }
 
 type frameHeader struct {
